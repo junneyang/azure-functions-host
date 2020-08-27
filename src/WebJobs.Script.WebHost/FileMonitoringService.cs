@@ -11,6 +11,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Azure.WebJobs.Logging;
+using Microsoft.Azure.WebJobs.Script.Abstractions.FileWatcher;
 using Microsoft.Azure.WebJobs.Script.Eventing;
 using Microsoft.Azure.WebJobs.Script.Eventing.File;
 using Microsoft.Azure.WebJobs.Script.IO;
@@ -35,6 +36,7 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
         private readonly Func<Task> _restart;
         private readonly Action _shutdown;
         private readonly ImmutableArray<string> _rootDirectorySnapshot;
+        private readonly IEnumerable<IFileEventSubscriber> _fileEventSubscribers;
         private AutoRecoveringFileSystemWatcher _debugModeFileWatcher;
         private AutoRecoveringFileSystemWatcher _diagnosticModeFileWatcher;
         private FileWatcherEventSource _fileEventSource;
@@ -44,12 +46,14 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
         private bool _watchersStopped = false;
         private object _stopWatchersLock = new object();
 
-        public FileMonitoringService(IOptions<ScriptJobHostOptions> scriptOptions, ILoggerFactory loggerFactory, IScriptEventManager eventManager, IApplicationLifetime applicationLifetime, IScriptHostManager scriptHostManager, IEnvironment environment)
+        public FileMonitoringService(IOptions<ScriptJobHostOptions> scriptOptions, ILoggerFactory loggerFactory, IScriptEventManager eventManager,
+            IApplicationLifetime applicationLifetime, IScriptHostManager scriptHostManager, IEnvironment environment, IEnumerable<IFileEventSubscriber> fileEventSubscribers)
         {
             _scriptOptions = scriptOptions.Value;
             _eventManager = eventManager;
             _applicationLifetime = applicationLifetime;
             _scriptHostManager = scriptHostManager;
+            _fileEventSubscribers = fileEventSubscribers;
             _hostLogPath = Path.Combine(_scriptOptions.RootLogPath, "Host");
             _logger = loggerFactory.CreateLogger(LogCategories.Startup);
             _environment = environment;
@@ -259,6 +263,23 @@ namespace Microsoft.Azure.WebJobs.Script.WebHost
             {
                 // Check directory snapshot only if "Deleted" change or if directory changed
                 changeDescription = "Directory";
+            }
+            else
+            {
+                foreach (var subscriber in _fileEventSubscribers)
+                {
+                    var fileEventResponse = subscriber.OnFileEvent(e);
+                    if (fileEventResponse != FileEventResponse.None)
+                    {
+                        changeDescription = "Watched path";
+                        shutdown = shutdown || fileEventResponse == FileEventResponse.Shutdown;
+
+                        if (shutdown)
+                        {
+                            break;
+                        }
+                    }
+                }
             }
 
             if (!string.IsNullOrEmpty(changeDescription))
