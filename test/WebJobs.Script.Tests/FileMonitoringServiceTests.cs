@@ -2,11 +2,9 @@
 // Licensed under the MIT License. See License.txt in the project root for license information.
 
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Azure.WebJobs.Script.Abstractions.FileWatcher;
 using Microsoft.Azure.WebJobs.Script.Eventing;
 using Microsoft.Azure.WebJobs.Script.WebHost;
 using Microsoft.Extensions.Logging;
@@ -87,7 +85,7 @@ namespace Microsoft.Azure.WebJobs.Script.Tests
 
                 // Act
                 FileMonitoringService fileMonitoringService = new FileMonitoringService(new OptionsWrapper<ScriptJobHostOptions>(jobHostOptions),
-                    loggerFactory, mockEventManager, mockApplicationLifetime.Object, mockScriptHostManager.Object, environment, Enumerable.Empty<IFileEventSubscriber>());
+                    loggerFactory, mockEventManager, mockApplicationLifetime.Object, mockScriptHostManager.Object, environment);
                 await fileMonitoringService.StartAsync(new CancellationToken(canceled: false));
 
                 var offlineEventArgs = new FileSystemEventArgs(WatcherChangeTypes.Created, tempDir, fileName);
@@ -138,8 +136,7 @@ namespace Microsoft.Azure.WebJobs.Script.Tests
             var environment = new TestEnvironment();
 
             // Act
-            return new FileMonitoringService(new OptionsWrapper<ScriptJobHostOptions>(jobHostOptions), loggerFactory, mockEventManager,
-                mockApplicationLifetime.Object, mockScriptHostManager.Object, environment, Enumerable.Empty<IFileEventSubscriber>());
+            return new FileMonitoringService(new OptionsWrapper<ScriptJobHostOptions>(jobHostOptions), loggerFactory, mockEventManager, mockApplicationLifetime.Object, mockScriptHostManager.Object, environment);
         }
     }
 }
